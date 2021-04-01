@@ -114,10 +114,18 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
                     result(FlutterError(code: "FlutterHealth", message: "Results are null", details: "\(error)"))
                     return
                 }
-                print(samplesCategory)
-                result(samplesCategory.map { sample -> NSDictionary in
-                    let unit = self.unitLookUp(key: dataTypeKey)
-
+                result(samplesCategory.filter{sample in
+                    if (dataTypeKey == self.SLEEP_IN_BED){
+                        return sample.value == 0
+                    }
+                    if (dataTypeKey == self.SLEEP_ASLEEP){
+                        return sample.value == 1
+                    }
+                    if (dataTypeKey == self.SLEEP_AWAKE){
+                        return sample.value == 2
+                    }
+                    return true
+                }.map { sample -> NSDictionary in
                     return [
                         "uuid": "\(sample.uuid)",
                         "value": sample.value,
