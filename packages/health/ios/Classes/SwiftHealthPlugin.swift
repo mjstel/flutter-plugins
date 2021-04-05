@@ -40,6 +40,11 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
     let SLEEP_IN_BED = "SLEEP_IN_BED"
     let SLEEP_ASLEEP = "SLEEP_ASLEEP"
     let SLEEP_AWAKE = "SLEEP_AWAKE"
+    
+    //Statistics components
+    let MINUTE = "MINUTE"
+    let HOUR = "HOUR"
+    let DAY = "DAY"
 
 
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -64,6 +69,10 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
         /// Handle getData
         else if (call.method.elementsEqual("getData")){
             getData(call: call, result: result)
+        }
+        
+        else if (call.method.elementsEqual("getStatisticsData")){
+            getStatisticsData(call: call, result: result)
         }
     }
 
@@ -91,6 +100,53 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
             result(false)// Handle the error here.
         }
     }
+    
+    func getStatisticsData(call: FlutterMethodCall, result: @escaping FlutterResult){
+        let arguments = call.arguments as? NSDictionary
+        let dataTypeKey = (arguments?["dataTypeKey"] as? String) ?? "DEFAULT"
+        let startDate = (arguments?["startDate"] as? NSNumber) ?? 0
+        let endDate = (arguments?["endDate"] as? NSNumber) ?? 0
+        let interval = (arguments?["interval"] as? String) ?? HOUR
+        
+
+        // Convert dates from milliseconds to Date()
+        let dateFrom = Date(timeIntervalSince1970: startDate.doubleValue / 1000)
+        let dateTo = Date(timeIntervalSince1970: endDate.doubleValue / 1000)
+        let statisticsInterval = intervalLookUp(key: interval)
+
+        guard let dataType = dataTypeLookUp(key: dataTypeKey) as? HKQuantityType else{
+            result(FlutterError(code: "FlutterHealth", message: "Can only calculate statistics from quantity types.", details: "\(dataTypeKey) is not quantitative."))
+        }
+        
+        let predicate = HKQuery.predicateForSamples(withStart: dateFrom, end: dateTo, options: .strictStartDate)
+        
+        let query = HKStatisticsCollectionQuery(quantityType: dataType , quantitySamplePredicate: predicate,options: .cumulativeSum , anchorDate: dateFrom , intervalComponents: statisticsInterval)
+        query.initialResultsHandler = {
+                        query ,statisticsOrNil, error in
+            
+            
+         
+            guard let stats = statisticsOrNil else {
+                result(FlutterError(code: "FlutterHealth", message: "Results are null", details: "\(error)"))
+                    return
+                }
+            
+            
+            let res = stats.statistics().map{ sample -> NSDictionary in
+                
+                let unit = self.unitLookUp(key: dataTypeKey)
+                return [
+                    "value": sample.sumQuantity()!.doubleValue(for: unit),
+                    "date_from": Int(sample.startDate.timeIntervalSince1970 * 1000),
+                    "date_to": Int(sample.endDate.timeIntervalSince1970 * 1000),
+                ]
+            }
+            result(res)
+            return
+            
+        }
+        healthStore.execute(query);
+    }
 
     func getData(call: FlutterMethodCall, result: @escaping FlutterResult) {
         let arguments = call.arguments as? NSDictionary
@@ -105,8 +161,8 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
         let dataType = dataTypeLookUp(key: dataTypeKey)
         let predicate = HKQuery.predicateForSamples(withStart: dateFrom, end: dateTo, options: .strictStartDate)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: true)
-
-        let query = HKSampleQuery(sampleType: dataType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) {
+            
+    let query = HKSampleQuery(sampleType: dataType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sortDescriptor]) {
             x, samplesOrNil, error in
 
             guard let samples = samplesOrNil as? [HKQuantitySample] else {
@@ -137,7 +193,7 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
             }
             result(samples.map { sample -> NSDictionary in
                 let unit = self.unitLookUp(key: dataTypeKey)
-
+                
                 return [
                     "uuid": "\(sample.uuid)",
                     "value": sample.quantity.doubleValue(for: unit),
@@ -164,6 +220,19 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
         return dataType_
     }
 
+    func intervalLookUp(key: String) -> DateComponents {
+        switch key {
+        case MINUTE:
+            return DateComponents(minute:1)
+        case HOUR:
+            return DateComponents(hour:1)
+        case DAY:
+            return DateComponents(day:1)
+        default:
+            return DateComponents(hour:1)
+        }
+    }
+    
     func initializeTypes() {
         unitDict[ACTIVE_ENERGY_BURNED] = HKUnit.kilocalorie()
         unitDict[BASAL_ENERGY_BURNED] = HKUnit.kilocalorie()

@@ -63,6 +63,46 @@ class HealthFactory {
     return bmiHealthPoints;
   }
 
+  Future<List<HealthDataPoint>> getStatisticalHealthDataFromTypes(
+      DateTime startDate, DateTime endDate, List<HealthDataType> types) async {
+    final dataPoints = <HealthDataPoint>[];
+
+    for (var type in types) {
+      final result = await _prepareQuery(startDate, endDate, type);
+      dataPoints.addAll(result);
+    }
+    return removeDuplicates(dataPoints);
+  }
+
+  /// Get an array of [HealthDataPoint] from an array of [HealthDataType]
+  Future<List<HealthDataPoint>> getStatisticsHealthDataFromTypes(
+      DateTime startDate,
+      DateTime endDate,
+      List<HealthDataType> types,
+      Interval interval) async {
+    final dataPoints = <HealthDataPoint>[];
+
+    for (var type in types) {
+      await _prepareQuery(startDate, endDate, type);
+
+      // Set parameters for method channel request
+      final args = <String, dynamic>{
+        'dataTypeKey': _enumToString(type),
+        'startDate': startDate.millisecondsSinceEpoch,
+        'endDate': endDate.millisecondsSinceEpoch,
+        'interval': _enumToString(interval)
+      };
+
+      final unit = _dataTypeToUnit[type]!;
+      final fetchedDataPoints =
+          await _channel.invokeMethod('getStatisticsData', args);
+      final result =
+          _mapResultToHealthDataPoints(fetchedDataPoints, type, unit);
+      dataPoints.addAll(result);
+    }
+    return removeDuplicates(dataPoints);
+  }
+
   /// Get an array of [HealthDataPoint] from an array of [HealthDataType]
   Future<List<HealthDataPoint>> getHealthDataFromTypes(
       DateTime startDate, DateTime endDate, List<HealthDataType> types) async {
@@ -110,6 +150,11 @@ class HealthFactory {
     final unit = _dataTypeToUnit[dataType]!;
 
     final fetchedDataPoints = await _channel.invokeMethod('getData', args);
+    return _mapResultToHealthDataPoints(fetchedDataPoints, dataType, unit);
+  }
+
+  _mapResultToHealthDataPoints(
+      fetchedDataPoints, HealthDataType dataType, HealthDataUnit unit) {
     if (fetchedDataPoints != null) {
       return fetchedDataPoints.map<HealthDataPoint>((e) {
         num value = e['value'];
@@ -142,3 +187,5 @@ class HealthFactory {
     return unique;
   }
 }
+
+enum Interval { HOUR, MINUTE, DAY }
