@@ -116,6 +116,7 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
 
         guard let dataType = dataTypeLookUp(key: dataTypeKey) as? HKQuantityType else{
             result(FlutterError(code: "FlutterHealth", message: "Can only calculate statistics from quantity types.", details: "\(dataTypeKey) is not quantitative."))
+            return
         }
         
         let predicate = HKQuery.predicateForSamples(withStart: dateFrom, end: dateTo, options: .strictStartDate)
