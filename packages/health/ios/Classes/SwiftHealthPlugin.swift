@@ -127,12 +127,12 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
             
          
             guard let stats = statisticsOrNil else {
-                result(FlutterError(code: "FlutterHealth", message: "Results are null", details: "\(error)"))
+                    result(FlutterError(code: "FlutterHealth", message: "Results are null", details: "\(error)"))
                     return
                 }
             
             
-            let res = stats.statistics().map{ sample -> NSDictionary in
+            result(stats.statistics().map{ sample -> NSDictionary in
                 
                 let unit = self.unitLookUp(key: dataTypeKey)
                 return [
@@ -140,12 +140,10 @@ public class SwiftHealthPlugin: NSObject, FlutterPlugin {
                     "date_from": Int(sample.startDate.timeIntervalSince1970 * 1000),
                     "date_to": Int(sample.endDate.timeIntervalSince1970 * 1000),
                 ]
-            }
-            result(res)
+            })
             return
-            
         }
-        healthStore.execute(query);
+        HKHealthStore().execute(query)
     }
 
     func getData(call: FlutterMethodCall, result: @escaping FlutterResult) {
